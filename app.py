@@ -23,8 +23,9 @@ class FileManager:
         }
 
     @staticmethod
-    def generate_sharing_links(file_url, filename):
+    def generate_sharing_links(filename):
         """Generate sharing links for different platforms with proper URL encoding."""
+        file_url = f"File: {filename}"
         subject = urllib.parse.quote(f"Shared File: {filename}")
         body = urllib.parse.quote(f"Check out this file: {file_url}")
         
@@ -56,15 +57,6 @@ class FileManager:
                 st.text(f.read())
         else:
             st.warning("File type not supported for preview")
-
-def delete_file(filename):
-    """Delete a file from the upload folder."""
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    try:
-        os.remove(file_path)
-        st.success(f"File '{filename}' deleted successfully!")
-    except Exception as e:
-        st.error(f"Error deleting file '{filename}': {e}")
 
 def main():
     st.title('File Sharing Platform')
@@ -98,38 +90,39 @@ def main():
                     st.error(f"Preview not available: {e}")
                 
                 # Download Section
-                st.subheader('Actions')
-                col1, col2 = st.columns([1,1])
-                with col1:
-                    try:
-                        file_path = os.path.join(UPLOAD_FOLDER, filename)
-                        with open(file_path, 'rb') as f:
-                            file_data = f.read()
-                        st.download_button(
-                            label='Download File',
-                            data=file_data,
-                            file_name=filename,
-                            mime='application/octet-stream'
-                        )
-                    except Exception as e:
-                        st.error(f"Error during download: {e}")
-                
-                with col2:
-                    # Delete File Button
-                    if st.button(f'Delete {filename}'):
-                        delete_file(filename)
-                        st.experimental_rerun()  # Refresh the app to update the file list
+                st.subheader('Download File')
+                file_path = os.path.join(UPLOAD_FOLDER, filename)
+                try:
+                    with open(file_path, 'rb') as f:
+                        file_data = f.read()
+                    st.download_button(
+                        label='Download File',
+                        data=file_data,
+                        file_name=filename,
+                        mime='application/octet-stream'
+                    )
+                except Exception as e:
+                    st.error(f"Error during download: {e}")
                 
                 # Sharing Options Section
-                file_url = ""  # Direct URL removed
                 st.subheader('Share File')
-                sharing_links = FileManager.generate_sharing_links(file_url, filename)
+                sharing_links = FileManager.generate_sharing_links(filename)
                 share_cols = st.columns(len(sharing_links))
                 for col, (platform, share_url) in zip(share_cols, sharing_links.items()):
                     with col:
                         st.markdown(f"[Share via {platform}]({share_url})", unsafe_allow_html=True)
+                
+                # Delete File Section
+                st.subheader('Delete File')
+                if st.button(f'Delete {filename}'):
+                    try:
+                        os.remove(file_path)
+                        st.success(f"File **{filename}** deleted successfully!")
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error deleting file: {e}")
     else:
         st.write('No files uploaded yet')
 
 if __name__ == '__main__':
-   
+    main()
