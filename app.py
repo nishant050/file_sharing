@@ -118,7 +118,7 @@ def main():
                     try:
                         os.remove(file_path)
                         st.success(f"File **{filename}** deleted successfully!")
-                        st.experimental_rerun()
+                        #st.experimental_rerun()
                     except Exception as e:
                         st.error(f"Error deleting file: {e}")
     else:
