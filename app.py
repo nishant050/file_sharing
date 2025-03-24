@@ -2,49 +2,51 @@ import os
 import streamlit as st
 import mimetypes
 import base64
+import urllib.parse
 
 # Persistent storage configuration
 UPLOAD_FOLDER = 'shared_files'
+BASE_URL = st.secrets.get('BASE_URL', 'http://localhost:8501/download/')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def get_file_type(filename):
-    """Determine the type of file for preview"""
-    mime_type, _ = mimetypes.guess_type(filename)
-    return mime_type
+class FileManager:
+    @staticmethod
+    def generate_file_url(filename):
+        """Generate a unique, shareable URL for the file"""
+        # URL encode the filename to handle special characters
+        encoded_filename = urllib.parse.quote(filename)
+        return f"{BASE_URL}{encoded_filename}"
 
-def list_files():
-    """List all files in the shared directory"""
-    return os.listdir(UPLOAD_FOLDER)
+    @staticmethod
+    def list_files():
+        """List all files in the shared directory"""
+        return os.listdir(UPLOAD_FOLDER)
 
-def delete_file(filename):
-    """Delete a specific file"""
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-        return True
-    return False
+    @staticmethod
+    def get_file_details(filename):
+        """Get file details including size and type"""
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        file_size = os.path.getsize(file_path)
+        mime_type, _ = mimetypes.guess_type(filename)
+        return {
+            'name': filename,
+            'size': f"{file_size / 1024:.2f} KB",
+            'type': mime_type or 'Unknown'
+        }
 
-def preview_file(filename):
-    """Generate preview for supported file types"""
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    mime_type = get_file_type(filename)
-
-    # Image preview
-    if mime_type and mime_type.startswith('image/'):
-        with open(file_path, 'rb') as f:
-            image_data = base64.b64encode(f.read()).decode()
-        st.image(f'data:{mime_type};base64,{image_data}')
-
-    # Video preview
-    elif mime_type and mime_type.startswith('video/'):
-        with open(file_path, 'rb') as f:
-            video_data = base64.b64encode(f.read()).decode()
-        st.video(f'data:{mime_type};base64,{video_data}')
-
-    # Text file preview
-    elif mime_type and mime_type.startswith('text/'):
-        with open(file_path, 'r') as f:
-            st.text(f.read())
+    @staticmethod
+    def generate_sharing_options(file_url, filename):
+        """Generate sharing options for different platforms"""
+        # URL encode the message for different sharing platforms
+        encoded_message = urllib.parse.quote(f"Check out this file: {file_url}")
+        
+        sharing_options = {
+            'WhatsApp': f"https://wa.me/?text={encoded_message}",
+            'Email': f"mailto:?body={encoded_message}",
+            'Telegram': f"https://t.me/share/url?url={file_url}&text={filename}",
+        }
+        
+        return sharing_options
 
 def main():
     st.title('Advanced File Sharing Platform')
@@ -58,53 +60,79 @@ def main():
         file_path = os.path.join(UPLOAD_FOLDER, uploaded_file.name)
         with open(file_path, 'wb') as f:
             f.write(uploaded_file.getbuffer())
+        
+        # Generate file URL
+        file_url = FileManager.generate_file_url(uploaded_file.name)
+        
+        # Display success and URL
         st.success(f'File {uploaded_file.name} uploaded successfully!')
+        st.subheader('File Sharing Options')
+        
+        # File Details
+        file_details = FileManager.get_file_details(uploaded_file.name)
+        st.json(file_details)
+        
+        # Direct Download URL
+        st.markdown(f"**Direct Download URL:**\n`{file_url}`")
+        st.code(file_url, language='text')
+        
+        # Copy URL Button
+        copy_url_button = st.button('Copy URL to Clipboard')
+        if copy_url_button:
+            st.toast('URL Copied to Clipboard!')
+            st.components.v1.html(
+                f"""
+                <script>
+                    navigator.clipboard.writeText('{file_url}');
+                </script>
+                """,
+                height=0
+            )
+        
+        # Sharing Options
+        st.subheader('Share File')
+        sharing_options = FileManager.generate_sharing_options(file_url, uploaded_file.name)
+        
+        # Create columns for sharing buttons
+        cols = st.columns(len(sharing_options))
+        for col, (platform, share_url) in zip(cols, sharing_options.items()):
+            with col:
+                st.markdown(f'[Share via {platform}]({share_url})', unsafe_allow_html=True)
 
     # File Management Section
-    st.header('📁 File Management')
+    st.header('📁 Uploaded Files')
     
     # List available files
-    available_files = list_files()
+    available_files = FileManager.list_files()
     
     if available_files:
-        # File selection
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            selected_file = st.selectbox('Choose a file', available_files)
-        
-        with col2:
-            # Action buttons
-            col_preview, col_download, col_delete = st.columns(3)
-            
-            with col_preview:
-                preview_button = st.button('Preview')
-            
-            with col_download:
-                download_button = st.download_button(
-                    label='Download',
-                    data=open(os.path.join(UPLOAD_FOLDER, selected_file), 'rb').read(),
-                    file_name=selected_file,
-                    mime='application/octet-stream'
-                )
-            
-            with col_delete:
-                delete_button = st.button('Delete')
-        
-        # Preview handling
-        if preview_button:
-            try:
-                preview_file(selected_file)
-            except Exception as e:
-                st.error(f"Cannot preview file: {e}")
-        
-        # Delete handling
-        if delete_button:
-            if delete_file(selected_file):
-                st.success(f'File {selected_file} deleted successfully!')
-                st.experimental_rerun()
-            else:
-                st.error('Failed to delete file')
+        for filename in available_files:
+            with st.expander(filename):
+                # File details
+                file_details = FileManager.get_file_details(filename)
+                st.json(file_details)
+                
+                # Generate file URL
+                file_url = FileManager.generate_file_url(filename)
+                
+                # Download and Share columns
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Download Button
+                    with open(os.path.join(UPLOAD_FOLDER, filename), 'rb') as f:
+                        st.download_button(
+                            label='Download',
+                            data=f.read(),
+                            file_name=filename,
+                            mime='application/octet-stream'
+                        )
+                
+                with col2:
+                    # Share Button
+                    sharing_options = FileManager.generate_sharing_options(file_url, filename)
+                    platform = st.selectbox(f'Share {filename} via', list(sharing_options.keys()), key=filename)
+                    st.markdown(f'[Share]({sharing_options[platform]})', unsafe_allow_html=True)
     
     else:
         st.write('No files available')
