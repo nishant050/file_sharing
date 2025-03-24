@@ -10,15 +10,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 class FileManager:
     @staticmethod
-    def generate_file_url(filename):
-        """
-        Generate a shareable direct download URL.
-        Note: This URL only works if you have a route serving the file.
-        """
-        # If you want a working direct download URL, consider serving files from a separate backend.
-        return f"https://nishantshares.streamlit.app/download/{urllib.parse.quote(filename)}"
-
-    @staticmethod
     def get_file_details(filename):
         """Get detailed information about the file."""
         file_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -34,7 +25,6 @@ class FileManager:
     @staticmethod
     def generate_sharing_links(file_url, filename):
         """Generate sharing links for different platforms with proper URL encoding."""
-        # Encode subject and body separately for clarity
         subject = urllib.parse.quote(f"Shared File: {filename}")
         body = urllib.parse.quote(f"Check out this file: {file_url}")
         
@@ -66,6 +56,15 @@ class FileManager:
                 st.text(f.read())
         else:
             st.warning("File type not supported for preview")
+
+def delete_file(filename):
+    """Delete a file from the upload folder."""
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    try:
+        os.remove(file_path)
+        st.success(f"File '{filename}' deleted successfully!")
+    except Exception as e:
+        st.error(f"Error deleting file '{filename}': {e}")
 
 def main():
     st.title('File Sharing Platform')
@@ -99,7 +98,8 @@ def main():
                     st.error(f"Preview not available: {e}")
                 
                 # Download Section
-                col1, col2 = st.columns(2)
+                st.subheader('Actions')
+                col1, col2 = st.columns([1,1])
                 with col1:
                     try:
                         file_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -115,24 +115,13 @@ def main():
                         st.error(f"Error during download: {e}")
                 
                 with col2:
-                    # Direct Download Link (Informative Only)
-                    file_url = FileManager.generate_file_url(filename)
-                    st.subheader('Direct Download Link')
-                    st.code(file_url)
-                    
-                    # Copy URL Button using a simple JS snippet
-                    if st.button(f'Copy URL for {filename}'):
-                        st.success('URL Copied to Clipboard!')
-                        st.components.v1.html(
-                            f"""
-                            <script>
-                                navigator.clipboard.writeText("{file_url}");
-                            </script>
-                            """,
-                            height=0
-                        )
+                    # Delete File Button
+                    if st.button(f'Delete {filename}'):
+                        delete_file(filename)
+                        st.experimental_rerun()  # Refresh the app to update the file list
                 
                 # Sharing Options Section
+                file_url = ""  # Direct URL removed
                 st.subheader('Share File')
                 sharing_links = FileManager.generate_sharing_links(file_url, filename)
                 share_cols = st.columns(len(sharing_links))
@@ -143,4 +132,4 @@ def main():
         st.write('No files uploaded yet')
 
 if __name__ == '__main__':
-    main()
+   
